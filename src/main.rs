@@ -3,7 +3,9 @@ use tracing::Level;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
 use tracing_tree::HierarchicalLayer;
 
+mod common;
 mod restore;
+mod types;
 
 #[derive(Subcommand)]
 enum Commands {

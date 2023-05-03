@@ -5,7 +5,7 @@ use k8s_openapi::api::{
     apps::v1::{Deployment, StatefulSet},
     batch::v1::{Job, JobSpec},
     core::v1::{
-        Container, EnvVar, PersistentVolumeClaim, PersistentVolumeClaimVolumeSource, Pod, PodSpec,
+        Container, EnvVar, PersistentVolumeClaim, PersistentVolumeClaimVolumeSource, PodSpec,
         PodTemplateSpec, Volume, VolumeMount,
     },
 };
@@ -15,10 +15,15 @@ use kube::{
     runtime::{conditions, wait::await_condition},
     Api,
 };
-use serde::de::DeserializeOwned;
+
 use serde_derive::Deserialize;
 use serde_json::json;
-use tracing::{debug, error, info};
+use tracing::info;
+
+use crate::{
+    common::{make_elasticsearch_request, make_operate_request, make_zeebe_request},
+    types::{BackupDescriptor, BackupState, OperateDetails, ZeebeDetails},
+};
 
 #[tracing::instrument(err)]
 pub(crate) async fn restore() -> Result<(), Box<dyn std::error::Error>> {
@@ -239,7 +244,7 @@ async fn delete_indices(kube: &kube::Client) -> Result<(), Box<dyn std::error::E
         .body(Body::empty())
         .expect("Request must be valid");
     let indices: std::collections::HashMap<String, Index> =
-        make_elasticsearch_request(kube, http_req).await?;
+        serde_json::from_slice(&make_elasticsearch_request(kube, http_req).await?)?;
 
     for index in indices.keys() {
         let http_req = Request::builder()
@@ -250,7 +255,7 @@ async fn delete_indices(kube: &kube::Client) -> Result<(), Box<dyn std::error::E
             .expect("Request must be valid");
         #[derive(Deserialize, Debug, PartialEq)]
         struct Response {}
-        let _: Response = make_elasticsearch_request(kube, http_req).await?;
+        make_elasticsearch_request(kube, http_req).await?;
         info!("Deleted index {}", index);
     }
     Ok(())
@@ -272,7 +277,7 @@ async fn restore_indices(
             .expect("Request must be valid");
         #[derive(Deserialize, Debug, PartialEq)]
         struct Response {}
-        let _: Response = make_elasticsearch_request(kube, http_req).await?;
+        make_elasticsearch_request(kube, http_req).await?;
         info!("Restored snapshot {}", snapshot);
     }
     Ok(())
@@ -391,41 +396,18 @@ async fn start_apps(
     Ok(())
 }
 
-#[derive(Deserialize, Debug, PartialEq)]
-#[serde(rename_all = "SCREAMING_SNAKE_CASE")]
-enum BackupState {
-    Completed,
-    Failed,
-    InProgress,
-    DoesNotExist,
-}
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-struct BackupDescriptor<T> {
-    backup_id: u64,
-    state: BackupState,
-    details: Vec<T>,
-}
-
-#[derive(Deserialize, Debug)]
-struct ZeebeDetails {}
-
-#[derive(Deserialize, Debug)]
-#[serde(rename_all = "camelCase")]
-struct OperateDetails {
-    snapshot_name: String,
-}
-
 #[tracing::instrument(skip(kube), err)]
 async fn find_newest_backup(kube: &kube::Client) -> Result<Backup, Box<dyn std::error::Error>> {
-    let zeebe_backups: Vec<BackupDescriptor<ZeebeDetails>> = make_zeebe_request(
-        kube,
-        Request::builder()
-            .uri("/actuator/backups")
-            .body(Body::empty())
-            .expect("Request must be valid"),
-    )
-    .await?;
+    let zeebe_backups: Vec<BackupDescriptor<ZeebeDetails>> = serde_json::from_slice(
+        &make_zeebe_request(
+            kube,
+            Request::builder()
+                .uri("/actuator/backups")
+                .body(Body::empty())
+                .expect("Request must be valid"),
+        )
+        .await?,
+    )?;
 
     let completed = zeebe_backups
         .iter()
@@ -434,16 +416,18 @@ async fn find_newest_backup(kube: &kube::Client) -> Result<Backup, Box<dyn std::
         .ok_or("No completed backup found")?;
 
     let id = completed.backup_id;
-    let zeebe_snapshot = format!("camunda_zeebe_records-{id}");
+    let zeebe_snapshot = format!("camunda_zeebe_records_{id}");
 
-    let operate_backup: BackupDescriptor<OperateDetails> = make_operate_request(
-        kube,
-        Request::builder()
-            .uri(format!("/actuator/backups/{id}"))
-            .body(Body::empty())
-            .expect("Request must be valid"),
-    )
-    .await?;
+    let operate_backup: BackupDescriptor<OperateDetails> = serde_json::from_slice(
+        &make_operate_request(
+            kube,
+            Request::builder()
+                .uri(format!("/actuator/backups/{id}"))
+                .body(Body::empty())
+                .expect("Request must be valid"),
+        )
+        .await?,
+    )?;
     let operate_snapshots = operate_backup
         .details
         .iter()
@@ -458,81 +442,4 @@ async fn find_newest_backup(kube: &kube::Client) -> Result<Backup, Box<dyn std::
             .chain(operate_snapshots.into_iter())
             .collect(),
     })
-}
-
-async fn make_zeebe_request<T>(
-    kube: &kube::Client,
-    req: Request<Body>,
-) -> Result<T, Box<dyn std::error::Error>>
-where
-    T: DeserializeOwned,
-{
-    make_component_request(kube, "app.kubernetes.io/component=zeebe-gateway", 9600, req).await
-}
-
-async fn make_operate_request<T>(
-    kube: &kube::Client,
-    req: Request<Body>,
-) -> Result<T, Box<dyn std::error::Error>>
-where
-    T: DeserializeOwned,
-{
-    make_component_request(kube, "app.kubernetes.io/component=operate", 8080, req).await
-}
-
-async fn make_elasticsearch_request<T>(
-    kube: &kube::Client,
-    req: Request<Body>,
-) -> Result<T, Box<dyn std::error::Error>>
-where
-    T: DeserializeOwned,
-{
-    make_component_request(kube, "app=elasticsearch-master", 9200, req).await
-}
-
-#[tracing::instrument(skip(kube), err, level = "debug")]
-async fn make_component_request<T>(
-    kube: &kube::Client,
-    component: &str,
-    port: u16,
-    mut req: Request<Body>,
-) -> Result<T, Box<dyn std::error::Error>>
-where
-    T: DeserializeOwned,
-{
-    let pods = Api::<Pod>::default_namespaced(kube.clone());
-    let pod = pods
-        .list(&ListParams::default().labels(component))
-        .await?
-        .items
-        .first()
-        .expect(&format!("Pod with label {component} must exist"))
-        .clone();
-    let forwarded_port = pods
-        .portforward(&pod.metadata.name.expect("Pod must have a name"), &[port])
-        .await?
-        .take_stream(port)
-        .expect(&format!("Port {port} must be open"));
-
-    let (mut sender, connection) = hyper::client::conn::handshake(forwarded_port).await?;
-    tokio::spawn(async move {
-        if let Err(e) = connection.await {
-            error!("Failed to establish connection: {}", e);
-        } else {
-            debug!("Connection established");
-        }
-    });
-
-    req.headers_mut()
-        .append("Host", "127.0.0.1".parse().unwrap());
-
-    let mut resp = sender.send_request(req).await?;
-    if !resp.status().is_success() {
-        let body = hyper::body::to_bytes(resp.body_mut()).await;
-        error!("Request failed: {:?}, {:?}", resp, body);
-        return Err("Request failed".into());
-    }
-    let body = hyper::body::to_bytes(resp.body_mut()).await?;
-    let res = serde_json::from_slice(&body)?;
-    Ok(res)
 }
