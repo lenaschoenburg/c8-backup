@@ -2,6 +2,10 @@
 name = "c8-backup"
 version = "0.1.0"
 edition = "2021"
+authors = ["Ole Schönburg <ole.schoenburg@gmail.com>"]
+description = "Backup and restore Camunda Platform 8 deployments"
+license = "MIT"
+homepage = "https://github.com/oleschoenburg/c8-backup"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
