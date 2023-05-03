@@ -1,8 +1,21 @@
+use clap::{Parser, Subcommand};
 use tracing::Level;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
 use tracing_tree::HierarchicalLayer;
 
 mod restore;
+
+#[derive(Subcommand)]
+enum Commands {
+    Restore,
+}
+
+#[derive(Parser)]
+#[command(author, version, about, long_about = None)]
+struct Cli {
+    #[command(subcommand)]
+    command: Commands,
+}
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -18,7 +31,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .with_bracketed_fields(true),
         )
         .init();
+    let cli = Cli::parse();
 
-    restore::restore().await?;
-    Ok(())
+    match cli.command {
+        Commands::Restore => restore::restore().await,
+    }
 }

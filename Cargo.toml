@@ -20,6 +20,7 @@ tracing = "0.1"
 tracing-tree = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 hyper = "0.14"
+clap = { version = "4.2.7", features = ["derive"] }
 
 # The profile that 'cargo dist' will build with
 [profile.dist]
