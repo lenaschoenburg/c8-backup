@@ -16,12 +16,12 @@ use kube::{
     Api,
 };
 
-use serde_derive::Deserialize;
 use serde_json::json;
 use tracing::info;
 
 use crate::{
-    common::{make_elasticsearch_request, make_operate_request, make_zeebe_request},
+    common::{make_operate_request, make_zeebe_request},
+    elasticsearch::{delete_index, get_all_indices, restore_snapshot},
     types::{BackupDescriptor, BackupState, OperateDetails, ZeebeDetails},
 };
 
@@ -234,29 +234,10 @@ async fn restore_zeebe_data(
 
 #[tracing::instrument(skip(kube), err)]
 async fn delete_indices(kube: &kube::Client) -> Result<(), Box<dyn std::error::Error>> {
-    #[derive(Deserialize, Debug, PartialEq)]
-    struct Index {}
+    let indices = get_all_indices(kube).await?;
 
-    let http_req = Request::builder()
-        .uri("/*")
-        .header("Host", "127.0.0.1")
-        .method("GET")
-        .body(Body::empty())
-        .expect("Request must be valid");
-    let indices: std::collections::HashMap<String, Index> =
-        serde_json::from_slice(&make_elasticsearch_request(kube, http_req).await?)?;
-
-    for index in indices.keys() {
-        let http_req = Request::builder()
-            .uri(format!("/{index}"))
-            .header("Host", "127.0.0.1")
-            .method("DELETE")
-            .body(Body::empty())
-            .expect("Request must be valid");
-        #[derive(Deserialize, Debug, PartialEq)]
-        struct Response {}
-        make_elasticsearch_request(kube, http_req).await?;
-        info!("Deleted index {}", index);
+    for index in indices {
+        delete_index(kube, &index).await?;
     }
     Ok(())
 }
@@ -267,17 +248,7 @@ async fn restore_indices(
     backup: &Backup,
 ) -> Result<(), Box<dyn std::error::Error>> {
     for snapshot in &backup.snapshots {
-        let http_req = Request::builder()
-            .uri(format!(
-                "/_snapshot/gcs/{snapshot}/_restore?wait_for_completion=true",
-            ))
-            .header("Host", "127.0.0.1")
-            .method("POST")
-            .body(Body::empty())
-            .expect("Request must be valid");
-        #[derive(Deserialize, Debug, PartialEq)]
-        struct Response {}
-        make_elasticsearch_request(kube, http_req).await?;
+        restore_snapshot(kube, snapshot).await?;
         info!("Restored snapshot {}", snapshot);
     }
     Ok(())

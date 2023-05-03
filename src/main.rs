@@ -5,6 +5,7 @@ use tracing_tree::HierarchicalLayer;
 
 mod backup;
 mod common;
+mod elasticsearch;
 mod restore;
 mod types;
 

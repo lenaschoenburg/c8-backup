@@ -10,7 +10,8 @@ use hyper::{
 use tracing::{info, warn};
 
 use crate::{
-    common::{make_elasticsearch_request, make_operate_request, make_zeebe_request},
+    common::{make_operate_request, make_zeebe_request},
+    elasticsearch::{take_snapshot, SnapshotRequest},
     types::{Backup, BackupDescriptor, BackupState, OperateDetails, ZeebeDetails},
 };
 
@@ -124,29 +125,12 @@ async fn backup_zeebe_export(
     kube: &kube::Client,
     new_backup: &Backup,
 ) -> Result<(), Box<dyn Error>> {
-    #[derive(serde::Serialize)]
-    struct SnapshotRequest {
-        indices: String,
-        feature_states: Vec<String>,
-    }
     let req = SnapshotRequest {
         indices: "zeebe-record*".into(),
         feature_states: vec!["none".into()],
     };
-    let req = Request::builder()
-        .method("POST")
-        .uri(format!(
-            "/_snapshot/gcs/camunda_zeebe_records_{}?wait_for_completion=true",
-            new_backup.backup_id
-        ))
-        .header(http::header::CONTENT_TYPE, "application/json")
-        .body(
-            serde_json::to_string(&req)
-                .expect("Snapshot request must be serializable")
-                .into(),
-        )?;
-
-    make_elasticsearch_request(kube, req).await?;
+    let name = format!("camunda_zeebe_records_{}", new_backup.backup_id);
+    take_snapshot(kube, req, &name).await?;
 
     Ok(())
 }
