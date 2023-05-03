@@ -1,6 +1,6 @@
 [package]
 name = "c8-backup"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Ole Schönburg <ole.schoenburg@gmail.com>"]
 description = "Backup and restore Camunda Platform 8 deployments"
