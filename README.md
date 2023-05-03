@@ -2,6 +2,28 @@
 
 A CLI tool to automate backup and restore of Camunda Platform 8 deployments.
 
+## Current Status
+
+**⚠️ Experimental ⚠️**
+
+Features:
+- [x] Take backups
+- [x] Restore backups
+- [ ] Dry runs
+
+Components:
+- [x] Zeebe
+- [x] Operate
+- [ ] Tasklist
+- [ ] Optimize
+
+Deployments:
+- [x] Remote [Camunda Platform 8 Helm] installation (running locally, connecting through the current kubernetes context).
+- [ ] Local [Camunda Platform 8 Helm] installation (running as a pod inside the cluster).
+
+
+[Camunda Platform 8 Helm]: https://github.com/camunda/camunda-platform-helm
+
 ## Usage
 > **Warning**
 > This tool is experimental and not safe for use yet! Running it can result in complete dataloss.
@@ -121,23 +143,3 @@ c8_backup::restore::restore{}
     53ms  INFO c8_backup::restore Started ccs23-dev-zeebe-gateway
     83ms  INFO c8_backup::restore Started ccs23-dev-zeebe
 ```
-
-## Current Status
-
-Features:
-- [ ] Take backups
-- [x] Restore backups
-- [ ] Dry runs
-
-Components:
-- [x] Zeebe
-- [x] Operate
-- [ ] Tasklist
-- [ ] Optimize
-
-Deployments:
-- [x] Remote [Camunda Platform 8 Helm] installation (running locally, connecting through the current kubernetes context).
-- [ ] Local [Camunda Platform 8 Helm] installation (running as a pod inside the cluster).
-
-
-[Camunda Platform 8 Helm]: https://github.com/camunda/camunda-platform-helm
