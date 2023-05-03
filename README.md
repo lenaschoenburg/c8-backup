@@ -1,5 +1,9 @@
+# `c8-backup`
+
+A CLI tool to automate backup and restore of Camunda Platform 8 deployments.
+
 ## Usage
-> ** Warning**
+> **Warning**
 > This tool is experimental and not safe for use yet! Running it can result in complete dataloss.
 
 Download a pre-built binary from the [latest release](https://github.com/oleschoenburg/c8-backup/releases) or build from sources with
