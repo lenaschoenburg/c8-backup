@@ -10,16 +10,16 @@ homepage = "https://github.com/oleschoenburg/c8-backup"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-serde = "1.0.160"
-serde_derive = "1.0.160"
+serde = "1"
+serde_derive = "1"
 tokio = { version = "1", features = ["full"] }
-kube = { version = "0.82.2", features = ["runtime", "derive", "ws"] }
-k8s-openapi = { version = "0.18.0", features = ["v1_26"] }
-serde_json = "1.0.96"
-tracing = "0.1.37"
-tracing-tree = "0.2.3"
-tracing-subscriber = { version = "0.3.17", features = ["env-filter"] }
-hyper = "0.14.26"
+kube = { version = "0.82", features = ["runtime", "derive", "ws"] }
+k8s-openapi = { version = "0.18", features = ["v1_26"] }
+serde_json = "1"
+tracing = "0.1"
+tracing-tree = "0.2"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+hyper = "0.14"
 
 # The profile that 'cargo dist' will build with
 [profile.dist]
