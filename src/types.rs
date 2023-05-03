@@ -28,6 +28,6 @@ pub struct OperateDetails {
 
 #[derive(Serialize, Debug)]
 #[serde(rename_all = "camelCase")]
-pub struct Backup {
+pub struct TakeBackupRequest {
     pub backup_id: String,
 }

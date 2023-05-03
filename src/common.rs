@@ -3,29 +3,8 @@ use k8s_openapi::api::core::v1::Pod;
 use kube::{api::ListParams, Api};
 use tracing::{debug, error};
 
-pub async fn make_zeebe_request(
-    kube: &kube::Client,
-    req: Request<Body>,
-) -> Result<Bytes, Box<dyn std::error::Error>> {
-    make_component_request(kube, "app.kubernetes.io/component=zeebe-gateway", 9600, req).await
-}
-
-pub async fn make_operate_request(
-    kube: &kube::Client,
-    req: Request<Body>,
-) -> Result<Bytes, Box<dyn std::error::Error>> {
-    make_component_request(kube, "app.kubernetes.io/component=operate", 8080, req).await
-}
-
-pub async fn make_elasticsearch_request(
-    kube: &kube::Client,
-    req: Request<Body>,
-) -> Result<Bytes, Box<dyn std::error::Error>> {
-    make_component_request(kube, "app=elasticsearch-master", 9200, req).await
-}
-
 #[tracing::instrument(skip(kube), err, level = "debug")]
-async fn make_component_request(
+pub async fn make_component_request(
     kube: &kube::Client,
     component: &str,
     port: u16,

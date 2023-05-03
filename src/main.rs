@@ -6,8 +6,10 @@ use tracing_tree::HierarchicalLayer;
 mod backup;
 mod common;
 mod elasticsearch;
+mod operate;
 mod restore;
 mod types;
+mod zeebe;
 
 #[derive(Subcommand)]
 enum Commands {

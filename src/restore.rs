@@ -1,6 +1,5 @@
 use std::collections::HashMap;
 
-use hyper::{Body, Request};
 use k8s_openapi::api::{
     apps::v1::{Deployment, StatefulSet},
     batch::v1::{Job, JobSpec},
@@ -20,9 +19,10 @@ use serde_json::json;
 use tracing::info;
 
 use crate::{
-    common::{make_operate_request, make_zeebe_request},
     elasticsearch::{delete_index, get_all_indices, restore_snapshot},
-    types::{BackupDescriptor, BackupState, OperateDetails, ZeebeDetails},
+    operate,
+    types::BackupState,
+    zeebe,
 };
 
 #[tracing::instrument(err)]
@@ -369,16 +369,7 @@ async fn start_apps(
 
 #[tracing::instrument(skip(kube), err)]
 async fn find_newest_backup(kube: &kube::Client) -> Result<Backup, Box<dyn std::error::Error>> {
-    let zeebe_backups: Vec<BackupDescriptor<ZeebeDetails>> = serde_json::from_slice(
-        &make_zeebe_request(
-            kube,
-            Request::builder()
-                .uri("/actuator/backups")
-                .body(Body::empty())
-                .expect("Request must be valid"),
-        )
-        .await?,
-    )?;
+    let zeebe_backups = zeebe::list_backups(kube).await?;
 
     let completed = zeebe_backups
         .iter()
@@ -389,16 +380,7 @@ async fn find_newest_backup(kube: &kube::Client) -> Result<Backup, Box<dyn std::
     let id = completed.backup_id;
     let zeebe_snapshot = format!("camunda_zeebe_records_{id}");
 
-    let operate_backup: BackupDescriptor<OperateDetails> = serde_json::from_slice(
-        &make_operate_request(
-            kube,
-            Request::builder()
-                .uri(format!("/actuator/backups/{id}"))
-                .body(Body::empty())
-                .expect("Request must be valid"),
-        )
-        .await?,
-    )?;
+    let operate_backup = operate::query_backup(kube, id).await?;
     let operate_snapshots = operate_backup
         .details
         .iter()

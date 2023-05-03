@@ -3,35 +3,28 @@ use std::{
     time::{SystemTime, UNIX_EPOCH},
 };
 
-use hyper::{
-    http::{self, Request},
-    Body,
-};
 use tracing::{info, warn};
 
 use crate::{
-    common::{make_operate_request, make_zeebe_request},
     elasticsearch::{take_snapshot, SnapshotRequest},
-    types::{Backup, BackupDescriptor, BackupState, OperateDetails, ZeebeDetails},
+    operate,
+    types::{BackupDescriptor, BackupState, OperateDetails},
+    zeebe,
 };
 
 #[tracing::instrument(err)]
 pub(crate) async fn backup() -> Result<(), Box<dyn Error>> {
     let kube = kube::Client::try_default().await?;
-    let timestamp = SystemTime::now()
+    let backup_id = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap()
-        .as_secs()
-        .to_string();
-    let new_backup = Backup {
-        backup_id: timestamp,
-    };
+        .as_secs();
 
-    let result = try_backup(&kube, &new_backup).await;
+    let result = try_backup(&kube, backup_id).await;
     match result {
         Err(e) => {
             warn!(e, "Backup failed, trying to resume Zeebe exporting");
-            resume_exporting(&kube).await?;
+            zeebe::resume_exporting(&kube).await?;
             Err(e)
         }
         _ => result,
@@ -39,137 +32,68 @@ pub(crate) async fn backup() -> Result<(), Box<dyn Error>> {
 }
 
 #[tracing::instrument(skip(kube), err)]
-pub(crate) async fn try_backup(
-    kube: &kube::Client,
-    new_backup: &Backup,
-) -> Result<(), Box<dyn Error>> {
-    backup_operate(&kube, &new_backup).await?;
-    pause_exporting(&kube).await?;
-    backup_zeebe_export(&kube, &new_backup).await?;
-    backup_zeebe(&kube, &new_backup).await?;
-    resume_exporting(&kube).await?;
+pub(crate) async fn try_backup(kube: &kube::Client, backup_id: u64) -> Result<(), Box<dyn Error>> {
+    backup_operate(&kube, backup_id).await?;
+    zeebe::pause_exporting(&kube).await?;
+    backup_zeebe_export(&kube, backup_id).await?;
+    backup_zeebe(&kube, backup_id).await?;
+    zeebe::resume_exporting(&kube).await?;
     Ok(())
 }
 
 #[tracing::instrument(skip(kube), err)]
-async fn backup_operate(kube: &kube::Client, new_backup: &Backup) -> Result<(), Box<dyn Error>> {
-    let take_backup = Request::builder()
-        .method("POST")
-        .uri("/actuator/backups")
-        .header(http::header::CONTENT_TYPE, "application/json")
-        .body(
-            serde_json::to_string(new_backup)
-                .expect("Backup must be serializable")
-                .into(),
-        )?;
+async fn backup_operate(kube: &kube::Client, backup_id: u64) -> Result<(), Box<dyn Error>> {
+    operate::take_backup(&kube, backup_id).await?;
 
-    make_operate_request(kube, take_backup).await?;
     info!("Started backup");
-    let mut backup: BackupDescriptor<OperateDetails>;
     loop {
-        let query_backup = Request::builder()
-            .uri(format!("/actuator/backups/{}", new_backup.backup_id))
-            .body(Body::empty())?;
-
-        match make_operate_request(kube, query_backup).await {
-            Ok(response) => {
-                backup = serde_json::from_slice(&response)?;
-                match backup.state {
-                    BackupState::Completed => {
-                        info!("Backup completed");
-                        break;
-                    }
-                    BackupState::Failed => {
-                        return Err("Backup failed".into());
-                    }
-                    _ => {
-                        info!(?backup.state, "Checking again in 5 seconds");
-                        tokio::time::sleep(std::time::Duration::from_secs(5)).await;
-                    }
-                }
+        match operate::query_backup(kube, backup_id).await {
+            Ok(BackupDescriptor {
+                state: BackupState::Completed,
+                ..
+            }) => {
+                info!("Backup completed");
+                return Ok(());
             }
-            Err(e) => {
-                warn!(?e, "Backup status unknown, trying again in 5 seconds");
+            result => {
+                info!(?result, "Checking again in 5 seconds");
                 tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                continue;
             }
         }
     }
-
-    Ok(())
 }
 
 #[tracing::instrument(skip(kube), err)]
-async fn pause_exporting(kube: &kube::Client) -> Result<(), Box<dyn Error>> {
-    let req = Request::builder()
-        .method("POST")
-        .uri("/actuator/exporting/pause")
-        .body(Body::empty())?;
-
-    make_zeebe_request(kube, req).await?;
-    Ok(())
-}
-
-#[tracing::instrument(skip(kube), err)]
-async fn resume_exporting(kube: &kube::Client) -> Result<(), Box<dyn Error>> {
-    let req = Request::builder()
-        .method("POST")
-        .uri("/actuator/exporting/resume")
-        .body(Body::empty())?;
-
-    make_zeebe_request(kube, req).await?;
-    Ok(())
-}
-
-#[tracing::instrument(skip(kube), err)]
-async fn backup_zeebe_export(
-    kube: &kube::Client,
-    new_backup: &Backup,
-) -> Result<(), Box<dyn Error>> {
+async fn backup_zeebe_export(kube: &kube::Client, backup_id: u64) -> Result<(), Box<dyn Error>> {
     let req = SnapshotRequest {
         indices: "zeebe-record*".into(),
         feature_states: vec!["none".into()],
     };
-    let name = format!("camunda_zeebe_records_{}", new_backup.backup_id);
+    let name = format!("camunda_zeebe_records_{}", backup_id);
     take_snapshot(kube, req, &name).await?;
 
     Ok(())
 }
 
 #[tracing::instrument(skip(kube), err)]
-async fn backup_zeebe(kube: &kube::Client, new_backup: &Backup) -> Result<(), Box<dyn Error>> {
-    let take_backup = Request::builder()
-        .method("POST")
-        .uri("/actuator/backups")
-        .header(http::header::CONTENT_TYPE, "application/json")
-        .body(
-            serde_json::to_string(new_backup)
-                .expect("Backup must be serializable")
-                .into(),
-        )?;
-
-    make_zeebe_request(kube, take_backup).await?;
+async fn backup_zeebe(kube: &kube::Client, backup_id: u64) -> Result<(), Box<dyn Error>> {
+    zeebe::take_backup(kube, backup_id).await?;
     info!("Started backup");
-    let mut backup: BackupDescriptor<ZeebeDetails>;
     loop {
-        let query_backup = Request::builder()
-            .uri(format!("/actuator/backups/{}", new_backup.backup_id))
-            .body(Body::empty())?;
-
-        backup = serde_json::from_slice(&make_zeebe_request(kube, query_backup).await?)?;
-        match backup.state {
-            BackupState::Completed => {
+        match zeebe::query_backup(kube, backup_id).await {
+            Ok(BackupDescriptor {
+                state: BackupState::Completed,
+                ..
+            }) => {
                 info!("Backup completed");
-                break;
+                return Ok(());
             }
-            BackupState::Failed => {
-                return Err("Backup failed".into());
-            }
-            _ => {
-                info!(?backup.state, "Checking again in 5 seconds");
+            result => {
+                info!(?result, "Checking again in 5 seconds");
                 tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                continue;
             }
         }
     }
-
-    Ok(())
 }

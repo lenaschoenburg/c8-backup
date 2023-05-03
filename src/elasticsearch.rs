@@ -1,9 +1,9 @@
 use std::{collections::HashMap, error::Error};
 
-use hyper::{http::header::CONTENT_TYPE, Body, Request};
+use hyper::{body::Bytes, http::header::CONTENT_TYPE, Body, Request};
 use tracing::info;
 
-use crate::common::make_elasticsearch_request;
+use crate::common::make_component_request;
 
 #[derive(serde::Serialize, Debug)]
 pub struct SnapshotRequest {
@@ -14,6 +14,13 @@ pub struct SnapshotRequest {
 #[derive(serde::Deserialize, Debug)]
 pub struct SnapshotRepository {
     pub r#type: String,
+}
+
+async fn make_elasticsearch_request(
+    kube: &kube::Client,
+    req: Request<Body>,
+) -> Result<Bytes, Box<dyn std::error::Error>> {
+    make_component_request(kube, "app=elasticsearch-master", 9200, req).await
 }
 
 #[tracing::instrument(skip(kube), err)]
