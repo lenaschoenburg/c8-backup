@@ -3,8 +3,8 @@ use tracing::Level;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
 use tracing_tree::HierarchicalLayer;
 
-mod backup;
 mod common;
+mod create;
 mod elasticsearch;
 mod operate;
 mod restore;
@@ -13,7 +13,7 @@ mod zeebe;
 
 #[derive(Subcommand)]
 enum Commands {
-    Backup,
+    Create,
     Restore,
 }
 
@@ -41,7 +41,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Backup => backup::backup().await,
+        Commands::Create => create::create().await,
         Commands::Restore => restore::restore().await,
     }
 }

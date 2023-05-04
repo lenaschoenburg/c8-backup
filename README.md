@@ -35,9 +35,9 @@ cargo install c8-backup
 
 Currently, this tool is meant to run locally. It will connect to your current kubernetes context and tries to find C8 components there.
 
-### Taking backups
+### Creating backups
 
-The `backup` command starts without any additional confirmation and will take the following steps:
+The `create` command starts without any additional confirmation and will take the following steps:
 1. Take a backup of Operate
 2. Pause Zeebe exporting
 3. Take a backup of exported Zeebe records
@@ -49,7 +49,7 @@ but you should manually confirm that exporting resumed, for example by following
 
 
 ```shell
-$ c8-backup backup
+$ c8-backup create
 c8_backup::backup::backup{}
   c8_backup::backup::try_backup{new_backup=Backup { backup_id: "1683126300" }}
     c8_backup::backup::backup_operate{new_backup=Backup { backup_id: "1683126300" }}
