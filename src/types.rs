@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Debug, PartialEq)]
+#[derive(Deserialize, Debug, PartialEq, Eq, Hash, Clone, Copy)]
 #[serde(rename_all = "SCREAMING_SNAKE_CASE")]
 pub enum BackupState {
     Completed,

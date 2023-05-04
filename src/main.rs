@@ -6,6 +6,7 @@ use tracing_tree::HierarchicalLayer;
 mod common;
 mod create;
 mod elasticsearch;
+mod list;
 mod operate;
 mod restore;
 mod types;
@@ -13,6 +14,7 @@ mod zeebe;
 
 #[derive(Subcommand)]
 enum Commands {
+    List,
     Create,
     Restore,
 }
@@ -41,6 +43,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match cli.command {
+        Commands::List => list::list().await,
         Commands::Create => create::create().await,
         Commands::Restore => restore::restore().await,
     }

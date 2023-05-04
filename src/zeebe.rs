@@ -38,7 +38,7 @@ pub async fn query_backup(
     Ok(serde_json::from_slice(&resp)?)
 }
 
-#[tracing::instrument(skip(kube), err)]
+#[tracing::instrument(skip(kube), err, level = "debug")]
 pub async fn list_backups(
     kube: &kube::Client,
 ) -> Result<Vec<BackupDescriptor<ZeebeDetails>>, Box<dyn Error>> {

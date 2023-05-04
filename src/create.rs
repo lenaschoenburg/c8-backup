@@ -1,8 +1,7 @@
-use std::{
-    error::Error,
-    time::{SystemTime, UNIX_EPOCH},
-};
+use std::{error::Error, time::Duration};
 
+use chrono::Utc;
+use tokio::time::sleep;
 use tracing::{info, warn};
 
 use crate::{
@@ -15,10 +14,7 @@ use crate::{
 #[tracing::instrument(err)]
 pub(crate) async fn create() -> Result<(), Box<dyn Error>> {
     let kube = kube::Client::try_default().await?;
-    let backup_id = SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .unwrap()
-        .as_secs();
+    let backup_id = Utc::now().timestamp() as u64;
 
     let result = try_backup(&kube, backup_id).await;
     match result {
@@ -56,8 +52,14 @@ async fn backup_operate(kube: &kube::Client, backup_id: u64) -> Result<(), Box<d
                 return Ok(());
             }
             result => {
-                info!(?result, "Checking again in 5 seconds");
-                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                info!(
+                    "Checking again in 5 seconds, state is {}",
+                    result
+                        .as_ref()
+                        .map(|b| format!("{:?}", b.state))
+                        .unwrap_or(format!("{:?}", result))
+                );
+                sleep(Duration::from_secs(5)).await;
                 continue;
             }
         }
@@ -90,8 +92,14 @@ async fn backup_zeebe(kube: &kube::Client, backup_id: u64) -> Result<(), Box<dyn
                 return Ok(());
             }
             result => {
-                info!(?result, "Checking again in 5 seconds");
-                tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                info!(
+                    "Checking again in 5 seconds, state is {}",
+                    result
+                        .as_ref()
+                        .map(|b| format!("{:?}", b.state))
+                        .unwrap_or(format!("{:?}", result))
+                );
+                sleep(Duration::from_secs(5)).await;
                 continue;
             }
         }

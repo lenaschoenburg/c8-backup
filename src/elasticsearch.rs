@@ -47,7 +47,7 @@ pub async fn take_snapshot(
     Ok(())
 }
 
-#[tracing::instrument(skip(kube), err)]
+#[tracing::instrument(skip(kube), err, level = "debug")]
 pub async fn restore_snapshot(kube: &kube::Client, name: &str) -> Result<(), Box<dyn Error>> {
     let repo = find_snapshot_repository(kube).await?;
     let req = Request::builder()
@@ -77,7 +77,7 @@ pub async fn get_all_indices(kube: &kube::Client) -> Result<Vec<String>, Box<dyn
     Ok(indices.keys().cloned().collect())
 }
 
-#[tracing::instrument(skip(kube), err)]
+#[tracing::instrument(skip(kube), err, level = "debug")]
 pub async fn delete_index(kube: &kube::Client, name: &str) -> Result<(), Box<dyn Error>> {
     let req = Request::builder()
         .uri(format!("/{name}"))

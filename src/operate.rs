@@ -15,6 +15,19 @@ async fn make_operate_request(
 }
 
 #[tracing::instrument(skip(kube), err, level = "debug")]
+pub(crate) async fn list_backups(
+    kube: &kube::Client,
+) -> Result<Vec<BackupDescriptor<OperateDetails>>, Box<dyn Error>> {
+    let req = Request::builder()
+        .method("GET")
+        .uri(format!("/actuator/backups"))
+        .body(Body::empty())?;
+
+    let resp = make_operate_request(kube, req).await?;
+    Ok(serde_json::from_slice(&resp)?)
+}
+
+#[tracing::instrument(skip(kube), err, level = "debug")]
 pub async fn query_backup(
     kube: &kube::Client,
     backup_id: u64,

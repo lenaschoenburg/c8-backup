@@ -20,9 +20,7 @@ use tracing::info;
 
 use crate::{
     elasticsearch::{delete_index, get_all_indices, restore_snapshot},
-    operate,
-    types::BackupState,
-    zeebe,
+    list, operate, zeebe,
 };
 
 #[tracing::instrument(err)]
@@ -370,26 +368,21 @@ async fn start_apps(
 #[tracing::instrument(skip(kube), err)]
 async fn find_newest_backup(kube: &kube::Client) -> Result<Backup, Box<dyn std::error::Error>> {
     let zeebe_backups = zeebe::list_backups(kube).await?;
+    let operate_backups = operate::list_backups(kube).await?;
+    let backup_id = list::find_most_recent_usable(&zeebe_backups, &operate_backups)
+        .ok_or("No usable backup found")?;
+    let zeebe_snapshot = format!("camunda_zeebe_records_{backup_id}");
 
-    let completed = zeebe_backups
-        .iter()
-        .filter(|d| d.state == BackupState::Completed)
-        .max_by_key(|d| d.backup_id)
-        .ok_or("No completed backup found")?;
-
-    let id = completed.backup_id;
-    let zeebe_snapshot = format!("camunda_zeebe_records_{id}");
-
-    let operate_backup = operate::query_backup(kube, id).await?;
-    let operate_snapshots = operate_backup
+    let operate_snapshots = operate::query_backup(kube, backup_id)
+        .await?
         .details
         .iter()
         .map(|d| d.snapshot_name.clone())
         .collect::<Vec<String>>();
 
-    info!("Using backup {}", id);
+    info!("Using backup {}", backup_id);
     Ok(Backup {
-        id: completed.backup_id,
+        id: backup_id,
         snapshots: vec![zeebe_snapshot]
             .into_iter()
             .chain(operate_snapshots.into_iter())
