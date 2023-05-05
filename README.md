@@ -93,6 +93,7 @@ c8_backup::create::create{}
       6180ms  INFO c8_backup::create Backup completed
     
     c8_backup::zeebe::resume_exporting{}```
+```
 
 ### Restoring backups
 
@@ -173,4 +174,5 @@ c8_backup::restore::restore{}
     0ms  INFO c8_backup::restore Starting apps
     29ms  INFO c8_backup::restore Started ccs23-dev-zeebe-gateway
     59ms  INFO c8_backup::restore Started ccs23-dev-operate
-    90ms  INFO c8_backup::restore Started ccs23-dev-zeebe```
+    90ms  INFO c8_backup::restore Started ccs23-dev-zeebe
+ ```
