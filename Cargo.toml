@@ -23,6 +23,7 @@ hyper = "0.14"
 clap = { version = "4.2.7", features = ["derive"] }
 chrono = "0.4.24"
 chrono-humanize = "0.2.2"
+async-trait = "0.1.68"
 
 # The profile that 'cargo dist' will build with
 [profile.dist]

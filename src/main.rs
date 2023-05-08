@@ -4,11 +4,13 @@ use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilte
 use tracing_tree::HierarchicalLayer;
 
 mod common;
+mod components;
 mod create;
 mod elasticsearch;
 mod list;
 mod operate;
 mod restore;
+mod targets;
 mod types;
 mod zeebe;
 

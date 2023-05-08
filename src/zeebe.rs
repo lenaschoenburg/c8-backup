@@ -29,7 +29,7 @@ pub async fn query_backup(
     kube: &kube::Client,
     backup_id: u64,
 ) -> Result<BackupDescriptor<ZeebeDetails>, Box<dyn Error>> {
-    let req = Request::builder()
+    let req: Request<Body> = Request::builder()
         .method("GET")
         .uri(format!("/actuator/backups/{}", backup_id))
         .body(Body::empty())?;

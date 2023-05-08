@@ -7,12 +7,18 @@ use tracing::{info, warn};
 use crate::{
     elasticsearch::{take_snapshot, SnapshotRequest},
     operate,
+    targets::remote::RemoteHelmInstallation,
+    targets::Target,
     types::{BackupDescriptor, BackupState},
     zeebe,
 };
 
+use crate::components::Backup;
+
 #[tracing::instrument(err)]
 pub(crate) async fn create() -> Result<(), Box<dyn Error>> {
+    let target = RemoteHelmInstallation::find_in_namespace("os-ccs-23-dev").await?;
+    target.zeebe().await.create(100).await?;
     let kube = kube::Client::try_default().await?;
     let backup_id = Utc::now().timestamp() as u64;
 
