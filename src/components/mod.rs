@@ -1,4 +1,4 @@
-use std::error::Error;
+use std::{error::Error, fmt::Display};
 
 use async_trait::async_trait;
 
@@ -9,10 +9,10 @@ pub mod operate;
 pub mod zeebe;
 
 type BackupId = u64;
-pub trait EndpointError: Error + Send {}
+pub trait EndpointError: Error + Send + 'static {}
 
 #[async_trait]
-pub trait Endpoint {
+pub trait Endpoint: Send + Sync {
     type Error: EndpointError;
     async fn request(
         &self,
@@ -20,6 +20,7 @@ pub trait Endpoint {
     ) -> Result<hyper::Response<hyper::Body>, Self::Error>;
 }
 
+#[derive(Debug)]
 pub enum BackupError<E: EndpointError> {
     AlreadyExists,
     NotFound,
@@ -27,6 +28,38 @@ pub enum BackupError<E: EndpointError> {
     Endpoint(E),
     UnexpectedJson(serde_json::Error),
     HttpError(hyper::Error),
+}
+
+impl<E> Display for BackupError<E>
+where
+    E: EndpointError,
+{
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BackupError::AlreadyExists => write!(f, "Backup already exists"),
+            BackupError::NotFound => write!(f, "Backup not found"),
+            BackupError::Failed => write!(f, "Backup failed"),
+            BackupError::Endpoint(e) => write!(f, "Endpoint error: {}", e),
+            BackupError::UnexpectedJson(e) => write!(f, "Unexpected JSON: {}", e),
+            BackupError::HttpError(e) => write!(f, "HTTP error: {}", e),
+        }
+    }
+}
+
+impl<E> Error for BackupError<E>
+where
+    E: EndpointError,
+{
+    fn source(&self) -> Option<&(dyn Error + 'static)> {
+        match self {
+            BackupError::AlreadyExists => None,
+            BackupError::NotFound => None,
+            BackupError::Failed => None,
+            BackupError::Endpoint(e) => Some(e),
+            BackupError::UnexpectedJson(e) => Some(e),
+            BackupError::HttpError(e) => Some(e),
+        }
+    }
 }
 
 impl<E> From<serde_json::Error> for BackupError<E>

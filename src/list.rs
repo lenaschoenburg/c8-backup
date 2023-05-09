@@ -10,17 +10,16 @@ use chrono_humanize::HumanTime;
 use tracing::{info, warn};
 
 use crate::{
-    operate,
+    components::Backup,
+    components::Endpoint,
+    targets::Target,
     types::{BackupDescriptor, BackupState, OperateDetails, ZeebeDetails},
-    zeebe,
 };
 
-#[tracing::instrument(err)]
-pub(crate) async fn list() -> Result<(), Box<dyn Error>> {
-    let kube = kube::Client::try_default().await?;
-    let zeebe_backups: Vec<BackupDescriptor<crate::types::ZeebeDetails>> =
-        zeebe::list_backups(&kube).await?;
-    let operate_backups = operate::list_backups(&kube).await?;
+#[tracing::instrument(err, fields(target = %target))]
+pub(crate) async fn list<E: Endpoint>(target: impl Target<E>) -> Result<(), Box<dyn Error>> {
+    let zeebe_backups = target.zeebe().list().await?;
+    let operate_backups = target.operate().list().await?;
 
     tracing::info_span!("Zeebe").in_scope(|| {
         print_backup_stats(&zeebe_backups);

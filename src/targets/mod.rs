@@ -1,20 +1,16 @@
-use std::error::Error;
-
-use async_trait::async_trait;
-use k8s_openapi::api::core::v1::Pod;
+use std::fmt::{Debug, Display};
 
 use crate::{
-    components::{common::Component, Endpoint, EndpointError},
+    components::{common::Component, Endpoint},
     types::{OperateDetails, ZeebeDetails},
 };
 
 pub mod remote;
 
-#[async_trait]
-pub trait Target<E>
+pub trait Target<E>: Display + Debug
 where
     E: Endpoint,
 {
-    async fn zeebe(&self) -> &dyn Component<Endpoint = E, Details = ZeebeDetails>;
-    async fn operate(&self) -> &dyn Component<Endpoint = E, Details = OperateDetails>;
+    fn zeebe(&self) -> &dyn Component<Endpoint = E, Details = ZeebeDetails>;
+    fn operate(&self) -> &dyn Component<Endpoint = E, Details = OperateDetails>;
 }

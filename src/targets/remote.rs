@@ -6,16 +6,14 @@ use kube::{api::ListParams, Api};
 use tracing::{debug, error};
 
 use crate::{
-    components::{
-        self, common::Component, operate::Operate, zeebe::Zeebe, Endpoint, EndpointError,
-    },
+    components::{common::Component, operate::Operate, zeebe::Zeebe, Endpoint, EndpointError},
     types::{OperateDetails, ZeebeDetails},
 };
 
 use super::Target;
 
 const OPERATE_LABEL: &str = "app.kubernetes.io/component=operate";
-const ZEEBE_LABEL: &str = "app.kubernetes.io/component=operate";
+const ZEEBE_LABEL: &str = "app.kubernetes.io/component=zeebe-gateway";
 
 pub struct RemoteHelmInstallation {
     kube: kube::Client,
@@ -23,9 +21,36 @@ pub struct RemoteHelmInstallation {
     operate: Operate<RemotePod>,
 }
 
+impl std::fmt::Debug for RemoteHelmInstallation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("RemoteHelmInstallation")
+            .field("zeebe", &self.zeebe)
+            .field("operate", &self.operate)
+            .finish()
+    }
+}
+
+impl Display for RemoteHelmInstallation {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "(remote helm installation)")
+    }
+}
+
 impl RemoteHelmInstallation {
+    pub async fn find() -> Result<RemoteHelmInstallation, kube::Error> {
+        let kube = kube::Client::try_default().await?;
+        let namespace = kube.default_namespace();
+        Self::find_with_client(kube.clone(), namespace).await
+    }
     pub async fn find_in_namespace(namespace: &str) -> Result<RemoteHelmInstallation, kube::Error> {
         let kube = kube::Client::try_default().await?;
+        Self::find_with_client(kube.clone(), namespace).await
+    }
+
+    pub async fn find_with_client(
+        kube: kube::Client,
+        namespace: &str,
+    ) -> Result<RemoteHelmInstallation, kube::Error> {
         let pods = Api::<Pod>::namespaced(kube.clone(), namespace);
 
         let operate_name = pods
@@ -70,14 +95,15 @@ impl RemoteHelmInstallation {
     }
 }
 
-struct RemotePod {
+#[derive(Debug)]
+pub(crate) struct RemotePod {
     pods: Api<Pod>,
     name: String,
     port: u16,
 }
 
 #[derive(Debug)]
-enum RemotePodEndpointError {
+pub(crate) enum RemotePodEndpointError {
     KubeError(kube::Error),
     HyperError(hyper::Error),
 }
@@ -142,13 +168,12 @@ impl Endpoint for RemotePod {
     }
 }
 
-#[async_trait]
-impl Target<RemotePod> for RemoteHelmInstallation {
-    async fn zeebe(&self) -> &dyn Component<Endpoint = RemotePod, Details = ZeebeDetails> {
+impl Target<RemotePod> for &RemoteHelmInstallation {
+    fn zeebe(&self) -> &dyn Component<Endpoint = RemotePod, Details = ZeebeDetails> {
         &self.zeebe
     }
 
-    async fn operate(&self) -> &dyn Component<Endpoint = RemotePod, Details = OperateDetails> {
+    fn operate(&self) -> &dyn Component<Endpoint = RemotePod, Details = OperateDetails> {
         &self.operate
     }
 }

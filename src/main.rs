@@ -1,4 +1,5 @@
 use clap::{Parser, Subcommand};
+use targets::remote::RemoteHelmInstallation;
 use tracing::Level;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
 use tracing_tree::HierarchicalLayer;
@@ -44,8 +45,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .init();
     let cli = Cli::parse();
 
+    let target = RemoteHelmInstallation::find().await?;
     match cli.command {
-        Commands::List => list::list().await,
+        Commands::List => list::list(&target).await,
         Commands::Create => create::create().await,
         Commands::Restore => restore::restore().await,
     }

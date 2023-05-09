@@ -1,18 +1,8 @@
-use std::{error::Error, fmt::Display};
+use crate::types::OperateDetails;
 
-use async_trait::async_trait;
-use hyper::{Body, Method, Request, Response};
-use k8s_openapi::api::core::v1::Pod;
-use kube::{api::ListParams, Api};
-use tracing::{debug, error};
+use super::{common::Component, Endpoint};
 
-use crate::types::{OperateDetails, ZeebeDetails};
-
-use super::{
-    common::Component, Backup, BackupError, BackupId, Endpoint, EndpointError, Restore,
-    RestoreError,
-};
-
+#[derive(Debug)]
 pub struct Operate<E: Endpoint> {
     pub(crate) endpoint: E,
 }
