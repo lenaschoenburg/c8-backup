@@ -54,7 +54,11 @@ impl RemoteHelmInstallation {
         let pods = Api::<Pod>::namespaced(kube.clone(), namespace);
 
         let operate_name = pods
-            .list(&ListParams::default().labels(OPERATE_LABEL))
+            .list(
+                &ListParams::default()
+                    .labels(OPERATE_LABEL)
+                    .fields("status.phase=Running"),
+            )
             .await?
             .items
             .first()
@@ -65,7 +69,11 @@ impl RemoteHelmInstallation {
             .expect("Pod must have a name");
 
         let zeebe_name = pods
-            .list(&ListParams::default().labels(ZEEBE_LABEL))
+            .list(
+                &ListParams::default()
+                    .labels(ZEEBE_LABEL)
+                    .fields("status.phase=Running"),
+            )
             .await?
             .items
             .first()
