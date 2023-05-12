@@ -1,6 +1,6 @@
 use crate::types::ZeebeDetails;
 
-use super::{common::Component, Endpoint};
+use super::{Component, Endpoint};
 
 #[derive(Debug)]
 pub struct Zeebe<E: Endpoint> {

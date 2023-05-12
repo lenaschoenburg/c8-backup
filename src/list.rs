@@ -11,8 +11,7 @@ use tracing::{info, warn};
 
 use crate::{
     components::Backup,
-    components::Endpoint,
-    targets::Target,
+    targets::{Endpoint, Target},
     types::{BackupDescriptor, BackupState, OperateDetails, ZeebeDetails},
 };
 

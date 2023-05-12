@@ -1,6 +1,6 @@
 use crate::types::OperateDetails;
 
-use super::{common::Component, Endpoint};
+use super::{Component, Endpoint};
 
 #[derive(Debug)]
 pub struct Operate<E: Endpoint> {

@@ -6,11 +6,11 @@ use kube::{api::ListParams, Api};
 use tracing::{debug, error};
 
 use crate::{
-    components::{common::Component, operate::Operate, zeebe::Zeebe, Endpoint, EndpointError},
+    components::{operate::Operate, zeebe::Zeebe, Component},
     types::{OperateDetails, ZeebeDetails},
 };
 
-use super::Target;
+use super::{Endpoint, EndpointError, Target};
 
 const OPERATE_LABEL: &str = "app.kubernetes.io/component=operate";
 const ZEEBE_LABEL: &str = "app.kubernetes.io/component=zeebe-gateway";

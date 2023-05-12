@@ -1,7 +1,12 @@
-use std::fmt::{Debug, Display};
+use std::{
+    error::Error,
+    fmt::{Debug, Display},
+};
+
+use async_trait::async_trait;
 
 use crate::{
-    components::{common::Component, Endpoint},
+    components::Component,
     types::{OperateDetails, ZeebeDetails},
 };
 
@@ -13,4 +18,15 @@ where
 {
     fn zeebe(&self) -> &dyn Component<Endpoint = E, Details = ZeebeDetails>;
     fn operate(&self) -> &dyn Component<Endpoint = E, Details = OperateDetails>;
+}
+
+pub trait EndpointError: Error + Send + 'static {}
+
+#[async_trait]
+pub trait Endpoint: Send + Sync {
+    type Error: EndpointError;
+    async fn request(
+        &self,
+        req: hyper::Request<hyper::Body>,
+    ) -> Result<hyper::Response<hyper::Body>, Self::Error>;
 }
