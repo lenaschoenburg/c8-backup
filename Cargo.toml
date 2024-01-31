@@ -14,7 +14,7 @@ repository = "https://github.com/oleschoenburg/c8-backup"
 serde = "1"
 serde_derive = "1"
 tokio = { version = "1", features = ["full"] }
-kube = { version = "0.82", default-features = false, features = ["client", "runtime", "ws", "rustls-tls"] }
+kube = { version = "0.88", default-features = false, features = ["client", "runtime", "ws", "rustls-tls"] }
 k8s-openapi = { version = "0.18", features = ["v1_26"] }
 serde_json = "1"
 tracing = "0.1"
