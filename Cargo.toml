@@ -22,7 +22,7 @@ tracing-tree = "0.3"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 hyper = "0.14"
 clap = { version = "4.5.0", features = ["derive"] }
-chrono = "0.4.24"
+chrono = "0.4.34"
 chrono-humanize = "0.2.2"
 
 # The profile that 'cargo dist' will build with
