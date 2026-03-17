@@ -25,7 +25,7 @@ async fn make_management_request(
 }
 
 #[tracing::instrument(skip(kube), err, level = "debug")]
-pub(crate) async fn list_backups(
+pub async fn list_backups(
     kube: &kube::Client,
 ) -> Result<Vec<BackupDescriptor<OperateDetails>>, Box<dyn Error>> {
     let req = Request::builder()

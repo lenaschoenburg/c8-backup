@@ -32,7 +32,7 @@ struct Backup {
 }
 
 #[tracing::instrument(err)]
-pub(crate) async fn restore(
+pub async fn restore(
     storage_mode: StorageMode,
     to: Option<String>,
     backup_id: Option<u64>,

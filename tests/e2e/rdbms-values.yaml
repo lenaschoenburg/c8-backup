@@ -1,0 +1,57 @@
+# Minimal Camunda 8 Helm values for RDBMS-mode e2e testing.
+
+global:
+  elasticsearch:
+    enabled: false
+
+orchestration:
+  enabled: true
+  clusterSize: "1"
+  partitionCount: "1"
+  replicationFactor: "1"
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  data:
+    secondaryStorage:
+      type: rdbms
+      rdbms:
+        url: "jdbc:postgresql://camunda-postgresql:5432/camunda"
+        username: camunda
+        secret:
+          inlineSecret: camunda
+    primaryStorage:
+      backup:
+        store: FILESYSTEM
+        filesystem:
+          basePath: /usr/local/zeebe/data/backups
+        continuous: true
+        schedule: PT1M
+  exporters:
+    rdbms:
+      enabled: true
+
+optimize:
+  enabled: false
+webModeler:
+  enabled: false
+console:
+  enabled: false
+connectors:
+  enabled: false
+identity:
+  enabled: false
+
+elasticsearch:
+  enabled: false
+
+postgresql:
+  enabled: true
+  auth:
+    username: camunda
+    password: camunda
+    database: camunda
