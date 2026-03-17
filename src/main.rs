@@ -3,16 +3,16 @@ use tracing::Level;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
 use tracing_tree::HierarchicalLayer;
 
-use crate::types::StorageMode;
-
 mod common;
 mod create;
 mod elasticsearch;
 mod list;
 mod operate;
 mod restore;
-mod types;
+pub mod types;
 mod zeebe;
+
+use types::StorageMode;
 
 #[derive(Subcommand)]
 enum Commands {
