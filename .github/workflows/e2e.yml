@@ -46,12 +46,12 @@ jobs:
         run: |
           echo "Waiting for Elasticsearch..."
           kubectl wait --for=condition=ready pod \
-            -l app=elasticsearch-master \
+            -l app.kubernetes.io/name=elasticsearch \
             -n camunda \
             --timeout=600s
-          echo "Waiting for orchestration pods..."
+          echo "Waiting for Camunda pods..."
           kubectl wait --for=condition=ready pod \
-            -l app.kubernetes.io/component=zeebe-broker \
+            -l app.kubernetes.io/part-of=camunda-platform \
             -n camunda \
             --timeout=600s
           kubectl get pods -n camunda
