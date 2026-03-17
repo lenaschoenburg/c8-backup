@@ -4,7 +4,10 @@ use hyper::{body::Bytes, header::CONTENT_TYPE, Body, Request};
 
 use crate::{
     common::make_component_request,
-    types::{BackupDescriptor, TakeBackupRequest, ZeebeDetails},
+    types::{
+        BackupDescriptor, CheckpointState, RuntimeBackupInfo, TakeBackupRequest,
+        TakeRuntimeBackupRequest, ZeebeDetails,
+    },
 };
 
 #[tracing::instrument(skip(kube), err)]
@@ -78,4 +81,59 @@ async fn make_zeebe_request(
     req: Request<Body>,
 ) -> Result<Bytes, Box<dyn std::error::Error>> {
     make_component_request(kube, "app.kubernetes.io/component=zeebe-gateway", 9600, req).await
+}
+
+// --- RDBMS Runtime Backup API ---
+
+#[tracing::instrument(skip(kube), err)]
+pub async fn take_runtime_backup(
+    kube: &kube::Client,
+    backup_id: u64,
+) -> Result<(), Box<dyn Error>> {
+    let req = Request::builder()
+        .method("POST")
+        .uri("/actuator/backupRuntime")
+        .header(CONTENT_TYPE, "application/json")
+        .body(
+            serde_json::to_string(&TakeRuntimeBackupRequest { backup_id })
+                .expect("Request can be serialized")
+                .into(),
+        )?;
+    make_zeebe_request(kube, req).await?;
+    Ok(())
+}
+
+#[tracing::instrument(skip(kube), err, level = "debug")]
+pub async fn query_runtime_backup(
+    kube: &kube::Client,
+    backup_id: u64,
+) -> Result<RuntimeBackupInfo, Box<dyn Error>> {
+    let req = Request::builder()
+        .method("GET")
+        .uri(format!("/actuator/backupRuntime/{}", backup_id))
+        .body(Body::empty())?;
+    let resp = make_zeebe_request(kube, req).await?;
+    Ok(serde_json::from_slice(&resp)?)
+}
+
+#[tracing::instrument(skip(kube), err, level = "debug")]
+pub async fn list_runtime_backups(
+    kube: &kube::Client,
+) -> Result<Vec<RuntimeBackupInfo>, Box<dyn Error>> {
+    let req = Request::builder()
+        .method("GET")
+        .uri("/actuator/backupRuntime")
+        .body(Body::empty())?;
+    let resp = make_zeebe_request(kube, req).await?;
+    Ok(serde_json::from_slice(&resp)?)
+}
+
+#[tracing::instrument(skip(kube), err, level = "debug")]
+pub async fn get_backup_state(kube: &kube::Client) -> Result<CheckpointState, Box<dyn Error>> {
+    let req = Request::builder()
+        .method("GET")
+        .uri("/actuator/backupRuntime/state")
+        .body(Body::empty())?;
+    let resp = make_zeebe_request(kube, req).await?;
+    Ok(serde_json::from_slice(&resp)?)
 }
