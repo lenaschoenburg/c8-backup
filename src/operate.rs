@@ -1,6 +1,8 @@
 use std::error::Error;
 
-use hyper::{body::Bytes, http::header::CONTENT_TYPE, Body, Request};
+use bytes::Bytes;
+use http_body_util::Full;
+use hyper::{header::CONTENT_TYPE, Request};
 
 use crate::{
     common::make_component_request,
@@ -9,7 +11,7 @@ use crate::{
 
 async fn make_operate_request(
     kube: &kube::Client,
-    req: Request<Body>,
+    req: Request<Full<Bytes>>,
 ) -> Result<Bytes, Box<dyn std::error::Error>> {
     make_component_request(kube, "app.kubernetes.io/component=operate", 8080, req).await
 }
@@ -17,7 +19,7 @@ async fn make_operate_request(
 #[allow(dead_code)]
 async fn make_management_request(
     kube: &kube::Client,
-    req: Request<Body>,
+    req: Request<Full<Bytes>>,
 ) -> Result<Bytes, Box<dyn std::error::Error>> {
     make_component_request(kube, "app.kubernetes.io/component=zeebe-gateway", 9600, req).await
 }
@@ -29,7 +31,7 @@ pub(crate) async fn list_backups(
     let req = Request::builder()
         .method("GET")
         .uri(format!("/actuator/backups"))
-        .body(Body::empty())?;
+        .body(Full::default())?;
 
     let resp = make_operate_request(kube, req).await?;
     Ok(serde_json::from_slice(&resp)?)
@@ -43,7 +45,7 @@ pub async fn query_backup(
     let req = Request::builder()
         .method("GET")
         .uri(format!("/actuator/backups/{}", backup_id))
-        .body(Body::empty())?;
+        .body(Full::default())?;
 
     let resp = make_operate_request(kube, req).await?;
     Ok(serde_json::from_slice(&resp)?)
@@ -55,13 +57,12 @@ pub async fn take_backup(kube: &kube::Client, backup_id: u64) -> Result<(), Box<
         .method("POST")
         .uri("/actuator/backups")
         .header(CONTENT_TYPE, "application/json")
-        .body(
+        .body(Full::from(
             serde_json::to_string(&TakeBackupRequest {
                 backup_id: backup_id.to_string(),
             })
-            .expect("Backup must be serializable")
-            .into(),
-        )?;
+            .expect("Backup must be serializable"),
+        ))?;
 
     make_operate_request(kube, req).await?;
     Ok(())
@@ -78,13 +79,12 @@ pub async fn take_history_backup(
         .method("POST")
         .uri("/actuator/backupHistory")
         .header(CONTENT_TYPE, "application/json")
-        .body(
+        .body(Full::from(
             serde_json::to_string(&TakeBackupRequest {
                 backup_id: backup_id.to_string(),
             })
-            .expect("Backup must be serializable")
-            .into(),
-        )?;
+            .expect("Backup must be serializable"),
+        ))?;
     make_management_request(kube, req).await?;
     Ok(())
 }
@@ -97,7 +97,7 @@ pub async fn query_history_backup(
     let req = Request::builder()
         .method("GET")
         .uri(format!("/actuator/backupHistory/{}", backup_id))
-        .body(Body::empty())?;
+        .body(Full::default())?;
     let resp = make_management_request(kube, req).await?;
     Ok(serde_json::from_slice(&resp)?)
 }
@@ -109,7 +109,7 @@ pub async fn list_history_backups(
     let req = Request::builder()
         .method("GET")
         .uri("/actuator/backupHistory")
-        .body(Body::empty())?;
+        .body(Full::default())?;
     let resp = make_management_request(kube, req).await?;
     Ok(serde_json::from_slice(&resp)?)
 }

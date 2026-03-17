@@ -1,6 +1,8 @@
 use std::error::Error;
 
-use hyper::{body::Bytes, header::CONTENT_TYPE, Body, Request};
+use bytes::Bytes;
+use http_body_util::Full;
+use hyper::{header::CONTENT_TYPE, Request};
 
 use crate::{
     common::make_component_request,
@@ -16,13 +18,12 @@ pub async fn take_backup(kube: &kube::Client, backup_id: u64) -> Result<(), Box<
         .method("POST")
         .uri("/actuator/backups")
         .header(CONTENT_TYPE, "application/json")
-        .body(
+        .body(Full::from(
             serde_json::to_string(&TakeBackupRequest {
                 backup_id: backup_id.to_string(),
             })
-            .expect("Request can be serialized")
-            .into(),
-        )?;
+            .expect("Request can be serialized"),
+        ))?;
     make_zeebe_request(kube, req).await?;
     Ok(())
 }
@@ -35,7 +36,7 @@ pub async fn query_backup(
     let req = Request::builder()
         .method("GET")
         .uri(format!("/actuator/backups/{}", backup_id))
-        .body(Body::empty())?;
+        .body(Full::default())?;
 
     let resp = make_zeebe_request(kube, req).await?;
     Ok(serde_json::from_slice(&resp)?)
@@ -48,7 +49,7 @@ pub async fn list_backups(
     let req = Request::builder()
         .method("GET")
         .uri("/actuator/backups")
-        .body(Body::empty())?;
+        .body(Full::default())?;
     let resp = make_zeebe_request(kube, req).await?;
 
     Ok(serde_json::from_slice(&resp)?)
@@ -59,7 +60,7 @@ pub async fn pause_exporting(kube: &kube::Client) -> Result<(), Box<dyn Error>> 
     let req = Request::builder()
         .method("POST")
         .uri("/actuator/exporting/pause")
-        .body(Body::empty())?;
+        .body(Full::default())?;
 
     make_zeebe_request(kube, req).await?;
     Ok(())
@@ -70,7 +71,7 @@ pub async fn resume_exporting(kube: &kube::Client) -> Result<(), Box<dyn Error>>
     let req = Request::builder()
         .method("POST")
         .uri("/actuator/exporting/resume")
-        .body(Body::empty())?;
+        .body(Full::default())?;
 
     make_zeebe_request(kube, req).await?;
     Ok(())
@@ -78,7 +79,7 @@ pub async fn resume_exporting(kube: &kube::Client) -> Result<(), Box<dyn Error>>
 
 async fn make_zeebe_request(
     kube: &kube::Client,
-    req: Request<Body>,
+    req: Request<Full<Bytes>>,
 ) -> Result<Bytes, Box<dyn std::error::Error>> {
     make_component_request(kube, "app.kubernetes.io/component=zeebe-gateway", 9600, req).await
 }
@@ -94,11 +95,10 @@ pub async fn take_runtime_backup(
         .method("POST")
         .uri("/actuator/backupRuntime")
         .header(CONTENT_TYPE, "application/json")
-        .body(
+        .body(Full::from(
             serde_json::to_string(&TakeRuntimeBackupRequest { backup_id })
-                .expect("Request can be serialized")
-                .into(),
-        )?;
+                .expect("Request can be serialized"),
+        ))?;
     make_zeebe_request(kube, req).await?;
     Ok(())
 }
@@ -111,7 +111,7 @@ pub async fn query_runtime_backup(
     let req = Request::builder()
         .method("GET")
         .uri(format!("/actuator/backupRuntime/{}", backup_id))
-        .body(Body::empty())?;
+        .body(Full::default())?;
     let resp = make_zeebe_request(kube, req).await?;
     Ok(serde_json::from_slice(&resp)?)
 }
@@ -123,7 +123,7 @@ pub async fn list_runtime_backups(
     let req = Request::builder()
         .method("GET")
         .uri("/actuator/backupRuntime")
-        .body(Body::empty())?;
+        .body(Full::default())?;
     let resp = make_zeebe_request(kube, req).await?;
     Ok(serde_json::from_slice(&resp)?)
 }
@@ -133,7 +133,7 @@ pub async fn get_backup_state(kube: &kube::Client) -> Result<CheckpointState, Bo
     let req = Request::builder()
         .method("GET")
         .uri("/actuator/backupRuntime/state")
-        .body(Body::empty())?;
+        .body(Full::default())?;
     let resp = make_zeebe_request(kube, req).await?;
     Ok(serde_json::from_slice(&resp)?)
 }

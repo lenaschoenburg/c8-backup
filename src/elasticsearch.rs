@@ -1,6 +1,8 @@
 use std::{collections::HashMap, error::Error};
 
-use hyper::{body::Bytes, http::header::CONTENT_TYPE, Body, Request};
+use bytes::Bytes;
+use http_body_util::Full;
+use hyper::{header::CONTENT_TYPE, Request};
 use tracing::info;
 
 use crate::common::make_component_request;
@@ -18,7 +20,7 @@ pub struct SnapshotRepository {
 
 async fn make_elasticsearch_request(
     kube: &kube::Client,
-    req: Request<Body>,
+    req: Request<Full<Bytes>>,
 ) -> Result<Bytes, Box<dyn std::error::Error>> {
     make_component_request(kube, "app=elasticsearch-master", 9200, req).await
 }
@@ -37,11 +39,9 @@ pub async fn take_snapshot(
             repo, name
         ))
         .header(CONTENT_TYPE, "application/json")
-        .body(
-            serde_json::to_string(&req)
-                .expect("Snapshot request must be serializable")
-                .into(),
-        )?;
+        .body(Full::from(
+            serde_json::to_string(&req).expect("Snapshot request must be serializable"),
+        ))?;
 
     make_elasticsearch_request(kube, req).await?;
     Ok(())
@@ -56,7 +56,7 @@ pub async fn restore_snapshot(kube: &kube::Client, name: &str) -> Result<(), Box
             "/_snapshot/{}/{}/_restore?wait_for_completion=true",
             repo, name
         ))
-        .body(Body::empty())?;
+        .body(Full::default())?;
 
     make_elasticsearch_request(kube, req).await?;
     Ok(())
@@ -70,7 +70,7 @@ pub async fn get_all_indices(kube: &kube::Client) -> Result<Vec<String>, Box<dyn
     let req = Request::builder()
         .uri("/*")
         .method("GET")
-        .body(Body::empty())
+        .body(Full::default())
         .expect("Request must be valid");
     let indices: std::collections::HashMap<String, Index> =
         serde_json::from_slice(&make_elasticsearch_request(kube, req).await?)?;
@@ -82,7 +82,7 @@ pub async fn delete_index(kube: &kube::Client, name: &str) -> Result<(), Box<dyn
     let req = Request::builder()
         .uri(format!("/{name}"))
         .method("DELETE")
-        .body(Body::empty())
+        .body(Full::default())
         .expect("Request must be valid");
 
     make_elasticsearch_request(kube, req).await?;
@@ -95,7 +95,7 @@ async fn find_snapshot_repository(kube: &kube::Client) -> Result<String, Box<dyn
     let req = Request::builder()
         .method("GET")
         .uri("/_snapshot/_all")
-        .body(hyper::Body::empty())?;
+        .body(Full::default())?;
 
     let resp = make_elasticsearch_request(kube, req).await?;
 
