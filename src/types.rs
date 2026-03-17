@@ -21,7 +21,6 @@ pub enum BackupState {
     Incompatible,
     Deleted,
 }
-
 #[derive(Deserialize, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct BackupDescriptor<T> {
