@@ -20,11 +20,17 @@ use tracing::info;
 
 use crate::{
     elasticsearch::{delete_index, get_all_indices, restore_snapshot},
-    list, operate, zeebe,
+    list, operate,
+    types::StorageMode,
+    zeebe,
 };
 
 #[tracing::instrument(err)]
-pub(crate) async fn restore() -> Result<(), Box<dyn std::error::Error>> {
+pub(crate) async fn restore(
+    _storage_mode: StorageMode,
+    _to: Option<String>,
+    _backup_id: Option<u64>,
+) -> Result<(), Box<dyn std::error::Error>> {
     let kube = kube::Client::try_default().await?;
     let backup = find_newest_backup(&kube).await?;
     let restartable = shutdown_apps(&kube).await?;

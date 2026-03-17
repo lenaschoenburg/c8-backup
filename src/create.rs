@@ -7,12 +7,12 @@ use tracing::{info, warn};
 use crate::{
     elasticsearch::{take_snapshot, SnapshotRequest},
     operate,
-    types::{BackupDescriptor, BackupState},
+    types::{BackupDescriptor, BackupState, StorageMode},
     zeebe,
 };
 
 #[tracing::instrument(err)]
-pub(crate) async fn create() -> Result<(), Box<dyn Error>> {
+pub(crate) async fn create(_storage_mode: StorageMode) -> Result<(), Box<dyn Error>> {
     let kube = kube::Client::try_default().await?;
     let backup_id = Utc::now().timestamp() as u64;
 
