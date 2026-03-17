@@ -21,35 +21,83 @@ use tracing::info;
 use crate::{
     elasticsearch::{delete_index, get_all_indices, restore_snapshot},
     list, operate,
-    types::StorageMode,
+    types::{RestoreTarget, StorageMode},
     zeebe,
 };
-
-#[tracing::instrument(err)]
-pub(crate) async fn restore(
-    _storage_mode: StorageMode,
-    _to: Option<String>,
-    _backup_id: Option<u64>,
-) -> Result<(), Box<dyn std::error::Error>> {
-    let kube = kube::Client::try_default().await?;
-    let backup = find_newest_backup(&kube).await?;
-    let restartable = shutdown_apps(&kube).await?;
-
-    delete_indices(&kube).await?;
-    restore_indices(&kube, &backup).await?;
-
-    delete_zeebe_data(&kube, &backup).await?;
-    restore_zeebe_data(&kube, &backup).await?;
-
-    start_apps(&kube, &restartable).await?;
-
-    Ok(())
-}
 
 #[derive(Debug)]
 struct Backup {
     id: u64,
     snapshots: Vec<String>,
+}
+
+#[tracing::instrument(err)]
+pub(crate) async fn restore(
+    storage_mode: StorageMode,
+    to: Option<String>,
+    backup_id: Option<u64>,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let kube = kube::Client::try_default().await?;
+
+    match storage_mode {
+        StorageMode::Elasticsearch => restore_es(&kube).await,
+        StorageMode::Rdbms => {
+            let target = determine_restore_target(to, backup_id)?;
+            restore_rdbms(&kube, &target).await
+        }
+    }
+}
+
+fn determine_restore_target(
+    to: Option<String>,
+    backup_id: Option<u64>,
+) -> Result<RestoreTarget, Box<dyn std::error::Error>> {
+    match (to, backup_id) {
+        (Some(_), Some(_)) => Err("Cannot specify both --to and --backup-id".into()),
+        (Some(ts), None) => Ok(RestoreTarget::RdbmsPointInTime { to: ts }),
+        (None, Some(id)) => Ok(RestoreTarget::RdbmsBackupId { id }),
+        (None, None) => Ok(RestoreTarget::RdbmsAuto),
+    }
+}
+
+fn restore_args_for_target(target: &RestoreTarget) -> Vec<String> {
+    match target {
+        RestoreTarget::RdbmsAuto => vec![],
+        RestoreTarget::RdbmsBackupId { id } => vec![format!("--backupId={}", id)],
+        RestoreTarget::RdbmsPointInTime { to } => vec![format!("--to={}", to)],
+        RestoreTarget::EsBackup { id, .. } => vec![format!("--backupId={}", id)],
+    }
+}
+
+#[tracing::instrument(skip(kube), err)]
+async fn restore_es(kube: &kube::Client) -> Result<(), Box<dyn std::error::Error>> {
+    let backup = find_newest_backup(kube).await?;
+    let restartable = shutdown_apps(kube).await?;
+
+    delete_indices(kube).await?;
+    restore_indices(kube, &backup).await?;
+
+    delete_zeebe_data(kube).await?;
+    restore_zeebe_data_es(kube, &backup).await?;
+
+    start_apps(kube, &restartable).await?;
+    Ok(())
+}
+
+#[tracing::instrument(skip(kube), err)]
+async fn restore_rdbms(
+    kube: &kube::Client,
+    target: &RestoreTarget,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let restartable = shutdown_apps(kube).await?;
+
+    // No ES index operations in RDBMS mode
+
+    delete_zeebe_data(kube).await?;
+    restore_zeebe_data_rdbms(kube, target).await?;
+
+    start_apps(kube, &restartable).await?;
+    Ok(())
 }
 
 fn zeebe_data_deletion_job(pvc: &PersistentVolumeClaim) -> Job {
@@ -97,7 +145,8 @@ fn zeebe_data_deletion_job(pvc: &PersistentVolumeClaim) -> Job {
 }
 
 fn zeebe_data_restoration_job(
-    backup: &Backup,
+    restore_binary: &str,
+    restore_args: &[String],
     pvc: &PersistentVolumeClaim,
     sfs: &StatefulSet,
 ) -> Job {
@@ -123,6 +172,9 @@ fn zeebe_data_restoration_job(
         value_from: None,
     });
 
+    let mut command = vec![restore_binary.to_string()];
+    command.extend(restore_args.iter().cloned());
+
     Job {
         metadata: ObjectMeta {
             name: Some(format!("restore-{}", name)),
@@ -140,10 +192,7 @@ fn zeebe_data_restoration_job(
                                 .clone()
                                 .expect("Zeebe container must define an image"),
                         ),
-                        command: Some(vec![
-                            "/usr/local/zeebe/bin/restore".to_string(),
-                            format!("--backupId={}", backup.id),
-                        ]),
+                        command: Some(command),
                         volume_mounts: Some(vec![VolumeMount {
                             name: "data".to_string(),
                             mount_path: "/usr/local/zeebe/data".to_string(),
@@ -172,10 +221,7 @@ fn zeebe_data_restoration_job(
 }
 
 #[tracing::instrument(skip(kube), err)]
-async fn delete_zeebe_data(
-    kube: &kube::Client,
-    backup: &Backup,
-) -> Result<(), Box<dyn std::error::Error>> {
+async fn delete_zeebe_data(kube: &kube::Client) -> Result<(), Box<dyn std::error::Error>> {
     let jobs: Api<Job> = Api::default_namespaced(kube.clone());
     let pvcs: Api<PersistentVolumeClaim> = Api::default_namespaced(kube.clone());
     let zeebe_pvcs = pvcs
@@ -200,9 +246,27 @@ async fn delete_zeebe_data(
 }
 
 #[tracing::instrument(skip(kube), err)]
-async fn restore_zeebe_data(
+async fn restore_zeebe_data_es(
     kube: &kube::Client,
     backup: &Backup,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let restore_args = vec![format!("--backupId={}", backup.id)];
+    restore_zeebe_data_with_args(kube, "/usr/local/zeebe/bin/restore", &restore_args).await
+}
+
+#[tracing::instrument(skip(kube), err)]
+async fn restore_zeebe_data_rdbms(
+    kube: &kube::Client,
+    target: &RestoreTarget,
+) -> Result<(), Box<dyn std::error::Error>> {
+    let restore_args = restore_args_for_target(target);
+    restore_zeebe_data_with_args(kube, "/usr/local/camunda/bin/restore", &restore_args).await
+}
+
+async fn restore_zeebe_data_with_args(
+    kube: &kube::Client,
+    restore_binary: &str,
+    restore_args: &[String],
 ) -> Result<(), Box<dyn std::error::Error>> {
     let jobs: Api<Job> = Api::default_namespaced(kube.clone());
     let sfs: Api<StatefulSet> = Api::default_namespaced(kube.clone());
@@ -222,7 +286,7 @@ async fn restore_zeebe_data(
 
     for pvc in &zeebe_pvcs {
         let pvc_name = pvc.metadata.name.to_owned().expect("PVC must have a name");
-        let job = zeebe_data_restoration_job(backup, pvc, &zeebe);
+        let job = zeebe_data_restoration_job(restore_binary, restore_args, pvc, &zeebe);
         jobs.create(&PostParams::default(), &job).await?;
         info!("Restoring data of {}", pvc_name)
     }
@@ -394,4 +458,60 @@ async fn find_newest_backup(kube: &kube::Client) -> Result<Backup, Box<dyn std::
             .chain(operate_snapshots.into_iter())
             .collect(),
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::types::RestoreTarget;
+
+    #[test]
+    fn test_determine_restore_target_auto() {
+        let target = determine_restore_target(None, None).unwrap();
+        assert!(matches!(target, RestoreTarget::RdbmsAuto));
+    }
+
+    #[test]
+    fn test_determine_restore_target_backup_id() {
+        let target = determine_restore_target(None, Some(123)).unwrap();
+        assert!(matches!(target, RestoreTarget::RdbmsBackupId { id: 123 }));
+    }
+
+    #[test]
+    fn test_determine_restore_target_point_in_time() {
+        let target = determine_restore_target(Some("2024-01-01T12:00:00Z".into()), None).unwrap();
+        match target {
+            RestoreTarget::RdbmsPointInTime { to } => assert_eq!(to, "2024-01-01T12:00:00Z"),
+            _ => panic!("Expected RdbmsPointInTime"),
+        }
+    }
+
+    #[test]
+    fn test_determine_restore_target_both_is_error() {
+        let result = determine_restore_target(Some("ts".into()), Some(123));
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_restore_args_for_rdbms_auto() {
+        let target = RestoreTarget::RdbmsAuto;
+        let args = restore_args_for_target(&target);
+        assert!(args.is_empty());
+    }
+
+    #[test]
+    fn test_restore_args_for_rdbms_backup_id() {
+        let target = RestoreTarget::RdbmsBackupId { id: 42 };
+        let args = restore_args_for_target(&target);
+        assert_eq!(args, vec!["--backupId=42"]);
+    }
+
+    #[test]
+    fn test_restore_args_for_rdbms_point_in_time() {
+        let target = RestoreTarget::RdbmsPointInTime {
+            to: "2024-01-01T00:00:00Z".into(),
+        };
+        let args = restore_args_for_target(&target);
+        assert_eq!(args, vec!["--to=2024-01-01T00:00:00Z"]);
+    }
 }
