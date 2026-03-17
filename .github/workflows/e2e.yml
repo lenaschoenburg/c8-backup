@@ -54,46 +54,42 @@ jobs:
       - name: Run ES e2e tests
         run: cargo test --test e2e_es -- --nocapture --ignored
 
-  e2e-rdbms:
-    name: E2E (RDBMS mode)
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v4
-
-      - uses: dtolnay/rust-toolchain@stable
-
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Build
-        run: cargo build
-
-      - name: Create k3d cluster
-        uses: AbsaOSS/k3d-action@v2
-        with:
-          cluster-name: c8-backup-test
-          args: >-
-            --agents 1
-            --k3s-arg "--disable=traefik@server:0"
-
-      - name: Deploy Camunda 8 (RDBMS mode)
-        run: |
-          helm repo add camunda https://helm.camunda.io
-          helm repo update camunda
-          helm install camunda camunda/camunda-platform \
-            --namespace camunda \
-            --create-namespace \
-            --values tests/e2e/rdbms-values.yaml \
-            --timeout 10m \
-            --wait
-
-      - name: Wait for readiness
-        run: |
-          kubectl wait --for=condition=ready pod \
-            -l app.kubernetes.io/part-of=camunda-platform \
-            -n camunda \
-            --timeout=300s || true
-          kubectl get pods -n camunda
-
-      - name: Run RDBMS e2e tests
-        run: cargo test --test e2e_rdbms -- --nocapture --ignored
+  # RDBMS mode requires Helm chart 8.9+ (not yet released).
+  # Uncomment when camunda-platform chart 14.x is available.
+  # e2e-rdbms:
+  #   name: E2E (RDBMS mode)
+  #   runs-on: ubuntu-latest
+  #   timeout-minutes: 20
+  #   steps:
+  #     - uses: actions/checkout@v4
+  #     - uses: dtolnay/rust-toolchain@stable
+  #     - uses: Swatinem/rust-cache@v2
+  #     - name: Build
+  #       run: cargo build
+  #     - name: Create k3d cluster
+  #       uses: AbsaOSS/k3d-action@v2
+  #       with:
+  #         cluster-name: c8-backup-test
+  #         args: >-
+  #           --agents 1
+  #           --k3s-arg "--disable=traefik@server:0"
+  #     - name: Deploy Camunda 8 (RDBMS mode)
+  #       run: |
+  #         helm repo add camunda https://helm.camunda.io
+  #         helm repo update camunda
+  #         helm install camunda camunda/camunda-platform \
+  #           --version ">=14.0.0" \
+  #           --namespace camunda \
+  #           --create-namespace \
+  #           --values tests/e2e/rdbms-values.yaml \
+  #           --timeout 10m \
+  #           --wait
+  #     - name: Wait for readiness
+  #       run: |
+  #         kubectl wait --for=condition=ready pod \
+  #           -l app.kubernetes.io/part-of=camunda-platform \
+  #           -n camunda \
+  #           --timeout=300s || true
+  #         kubectl get pods -n camunda
+  #     - name: Run RDBMS e2e tests
+  #       run: cargo test --test e2e_rdbms -- --nocapture --ignored
