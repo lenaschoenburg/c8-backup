@@ -57,6 +57,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     match cli.command {
         Commands::List => list::list(cli.storage_mode).await,
         Commands::Create => create::create(cli.storage_mode).await,
-        Commands::Restore { to, backup_id } => restore::restore(cli.storage_mode, to, backup_id).await,
+        Commands::Restore { to, backup_id } => {
+            restore::restore(cli.storage_mode, to, backup_id).await
+        }
     }
 }
