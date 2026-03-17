@@ -12,15 +12,23 @@ use crate::{
 };
 
 #[tracing::instrument(err)]
-pub(crate) async fn create(_storage_mode: StorageMode) -> Result<(), Box<dyn Error>> {
+pub(crate) async fn create(storage_mode: StorageMode) -> Result<(), Box<dyn Error>> {
     let kube = kube::Client::try_default().await?;
     let backup_id = Utc::now().timestamp() as u64;
 
-    let result = try_backup(&kube, backup_id).await;
+    match storage_mode {
+        StorageMode::Elasticsearch => create_es(&kube, backup_id).await,
+        StorageMode::Rdbms => create_rdbms(&kube, backup_id).await,
+    }
+}
+
+#[tracing::instrument(skip(kube), err)]
+async fn create_es(kube: &kube::Client, backup_id: u64) -> Result<(), Box<dyn Error>> {
+    let result = try_backup(kube, backup_id).await;
     match result {
         Err(e) => {
             warn!(e, "Backup failed, trying to resume Zeebe exporting");
-            zeebe::resume_exporting(&kube).await?;
+            zeebe::resume_exporting(kube).await?;
             Err(e)
         }
         _ => result,
@@ -28,18 +36,46 @@ pub(crate) async fn create(_storage_mode: StorageMode) -> Result<(), Box<dyn Err
 }
 
 #[tracing::instrument(skip(kube), err)]
-pub(crate) async fn try_backup(kube: &kube::Client, backup_id: u64) -> Result<(), Box<dyn Error>> {
-    backup_operate(&kube, backup_id).await?;
-    zeebe::pause_exporting(&kube).await?;
-    backup_zeebe_export(&kube, backup_id).await?;
-    backup_zeebe(&kube, backup_id).await?;
-    zeebe::resume_exporting(&kube).await?;
+async fn create_rdbms(kube: &kube::Client, backup_id: u64) -> Result<(), Box<dyn Error>> {
+    info!("Triggering runtime backup {}", backup_id);
+    zeebe::take_runtime_backup(kube, backup_id).await?;
+
+    info!("Waiting for runtime backup to complete...");
+    loop {
+        match zeebe::query_runtime_backup(kube, backup_id).await {
+            Ok(backup) if backup.state == BackupState::Completed => {
+                info!("Runtime backup {} completed", backup_id);
+                return Ok(());
+            }
+            Ok(backup) if backup.state == BackupState::Failed => {
+                let reason = backup.failure_reason.unwrap_or_default();
+                return Err(format!("Runtime backup {} failed: {}", backup_id, reason).into());
+            }
+            Ok(backup) => {
+                info!("Checking again in 5 seconds, state is {:?}", backup.state);
+                sleep(Duration::from_secs(5)).await;
+            }
+            Err(e) => {
+                info!("Checking again in 5 seconds, error: {}", e);
+                sleep(Duration::from_secs(5)).await;
+            }
+        }
+    }
+}
+
+#[tracing::instrument(skip(kube), err)]
+async fn try_backup(kube: &kube::Client, backup_id: u64) -> Result<(), Box<dyn Error>> {
+    backup_operate(kube, backup_id).await?;
+    zeebe::pause_exporting(kube).await?;
+    backup_zeebe_export(kube, backup_id).await?;
+    backup_zeebe(kube, backup_id).await?;
+    zeebe::resume_exporting(kube).await?;
     Ok(())
 }
 
 #[tracing::instrument(skip(kube), err)]
 async fn backup_operate(kube: &kube::Client, backup_id: u64) -> Result<(), Box<dyn Error>> {
-    operate::take_backup(&kube, backup_id).await?;
+    operate::take_backup(kube, backup_id).await?;
 
     info!("Started backup");
     loop {
