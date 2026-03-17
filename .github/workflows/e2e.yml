@@ -40,15 +40,20 @@ jobs:
             --namespace camunda \
             --create-namespace \
             --values tests/e2e/test-values.yaml \
-            --timeout 10m \
-            --wait
+            --timeout 15m
 
       - name: Wait for readiness
         run: |
+          echo "Waiting for Elasticsearch..."
           kubectl wait --for=condition=ready pod \
-            -l app.kubernetes.io/part-of=camunda-platform \
+            -l app=elasticsearch-master \
             -n camunda \
-            --timeout=300s || true
+            --timeout=600s
+          echo "Waiting for orchestration pods..."
+          kubectl wait --for=condition=ready pod \
+            -l app.kubernetes.io/component=zeebe-broker \
+            -n camunda \
+            --timeout=600s
           kubectl get pods -n camunda
 
       - name: Run ES e2e tests
