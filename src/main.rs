@@ -3,6 +3,8 @@ use tracing::Level;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
 use tracing_tree::HierarchicalLayer;
 
+use crate::types::StorageMode;
+
 mod common;
 mod create;
 mod elasticsearch;
@@ -16,12 +18,22 @@ mod zeebe;
 enum Commands {
     List,
     Create,
-    Restore,
+    Restore {
+        /// Point-in-time restore target (ISO 8601 timestamp, RDBMS mode only)
+        #[arg(long)]
+        to: Option<String>,
+        /// Explicit backup ID to restore from
+        #[arg(long)]
+        backup_id: Option<u64>,
+    },
 }
 
 #[derive(Parser)]
 #[command(author, version, about, long_about = None)]
 struct Cli {
+    /// Secondary storage type of the Camunda deployment
+    #[arg(long, value_enum, default_value_t = StorageMode::Elasticsearch)]
+    storage_mode: StorageMode,
     #[command(subcommand)]
     command: Commands,
 }
@@ -43,8 +55,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::List => list::list().await,
-        Commands::Create => create::create().await,
-        Commands::Restore => restore::restore().await,
+        Commands::List => list::list(cli.storage_mode).await,
+        Commands::Create => create::create(cli.storage_mode).await,
+        Commands::Restore { to, backup_id } => restore::restore(cli.storage_mode, to, backup_id).await,
     }
 }

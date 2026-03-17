@@ -25,6 +25,10 @@ clap = { version = "4.5.3", features = ["derive"] }
 chrono = "0.4.35"
 chrono-humanize = "0.2.2"
 
+[dev-dependencies]
+serde_json = "1"
+tokio = { version = "1", features = ["test-util", "macros"] }
+
 # The profile that 'cargo dist' will build with
 [profile.dist]
 inherits = "release"

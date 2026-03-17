@@ -11,12 +11,12 @@ use tracing::{info, warn};
 
 use crate::{
     operate,
-    types::{BackupDescriptor, BackupState, OperateDetails, ZeebeDetails},
+    types::{BackupDescriptor, BackupState, OperateDetails, StorageMode, ZeebeDetails},
     zeebe,
 };
 
 #[tracing::instrument(err)]
-pub(crate) async fn list() -> Result<(), Box<dyn Error>> {
+pub(crate) async fn list(_storage_mode: StorageMode) -> Result<(), Box<dyn Error>> {
     let kube = kube::Client::try_default().await?;
     let zeebe_backups: Vec<BackupDescriptor<crate::types::ZeebeDetails>> =
         zeebe::list_backups(&kube).await?;
