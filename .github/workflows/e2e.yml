@@ -57,7 +57,9 @@ jobs:
           kubectl get pods -n camunda
 
       - name: Run ES e2e tests
-        run: cargo test --test e2e_es -- --nocapture --ignored
+        run: |
+          kubectl config set-context --current --namespace=camunda
+          cargo test --test e2e_es -- --nocapture --ignored
 
   # RDBMS mode requires Helm chart 8.9+ (not yet released).
   # Uncomment when camunda-platform chart 14.x is available.
