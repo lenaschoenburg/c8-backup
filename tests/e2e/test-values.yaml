@@ -1,0 +1,50 @@
+# Minimal Camunda 8 Helm values for ES-mode e2e testing.
+
+orchestration:
+  enabled: true
+  clusterSize: "1"
+  partitionCount: "1"
+  replicationFactor: "1"
+  resources:
+    requests:
+      cpu: 200m
+      memory: 512Mi
+    limits:
+      cpu: 1000m
+      memory: 1Gi
+  env:
+    - name: CAMUNDA_DATA_PRIMARY_STORAGE_BACKUP_STORE
+      value: FILESYSTEM
+    - name: CAMUNDA_DATA_PRIMARY_STORAGE_BACKUP_FILESYSTEM_BASEPATH
+      value: /usr/local/zeebe/data/backups
+
+optimize:
+  enabled: false
+webModeler:
+  enabled: false
+console:
+  enabled: false
+connectors:
+  enabled: false
+identity:
+  enabled: false
+
+elasticsearch:
+  master:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: 1000m
+        memory: 1Gi
+  extraEnvs:
+    - name: path.repo
+      value: /usr/share/elasticsearch/snapshots
+  extraVolumes:
+    - name: snapshots
+      emptyDir: {}
+  extraVolumeMounts:
+    - name: snapshots
+      mountPath: /usr/share/elasticsearch/snapshots

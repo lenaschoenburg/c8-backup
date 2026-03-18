@@ -3,16 +3,8 @@ use tracing::Level;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter, Registry};
 use tracing_tree::HierarchicalLayer;
 
-mod common;
-mod create;
-mod elasticsearch;
-mod list;
-mod operate;
-mod restore;
-pub mod types;
-mod zeebe;
-
-use types::StorageMode;
+use c8_backup::types::StorageMode;
+use c8_backup::{create, list, restore};
 
 #[derive(Subcommand)]
 enum Commands {

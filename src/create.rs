@@ -12,7 +12,7 @@ use crate::{
 };
 
 #[tracing::instrument(err)]
-pub(crate) async fn create(storage_mode: StorageMode) -> Result<(), Box<dyn Error>> {
+pub async fn create(storage_mode: StorageMode) -> Result<(), Box<dyn Error>> {
     let kube = kube::Client::try_default().await?;
     let backup_id = Utc::now().timestamp() as u64;
 

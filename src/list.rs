@@ -41,7 +41,7 @@ impl BackupEntry for RuntimeBackupInfo {
     }
 }
 
-pub(crate) async fn list(storage_mode: StorageMode) -> Result<(), Box<dyn Error>> {
+pub async fn list(storage_mode: StorageMode) -> Result<(), Box<dyn Error>> {
     let kube = kube::Client::try_default().await?;
     match storage_mode {
         StorageMode::Elasticsearch => list_es(&kube).await,
